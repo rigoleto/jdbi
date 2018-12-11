@@ -19,9 +19,9 @@ import java.lang.reflect.TypeVariable;
 import java.util.Map;
 import java.util.Optional;
 
+import io.leangen.geantyref.GenericTypeReflector;
+import io.leangen.geantyref.TypeFactory;
 import org.jdbi.v3.core.internal.UtilityClassException;
-import org.jdbi.v3.lib.internal.com_google_guava.guava.v21_0.TypeParameter;
-import org.jdbi.v3.lib.internal.com_google_guava.guava.v21_0.TypeToken;
 
 /**
  * Utilities for working with generic types.
@@ -54,7 +54,7 @@ public class GenericTypes {
      * @return the erased class
      */
     public static Class<?> getErasedType(Type type) {
-        return TypeToken.of(type).getRawType();
+        return GenericTypeReflector.erase(type);
     }
 
     /**
@@ -101,10 +101,7 @@ public class GenericTypes {
      * @throws ArrayIndexOutOfBoundsException if n &gt; the number of type variables the type has
      */
     public static Optional<Type> findGenericParameter(Type type, Class<?> parameterizedSupertype, int n) {
-        Type parameterType = resolveType(parameterizedSupertype.getTypeParameters()[n], type);
-        return parameterType instanceof Class || parameterType instanceof ParameterizedType
-            ? Optional.of(parameterType)
-            : Optional.empty();
+        return Optional.ofNullable(GenericTypeReflector.getTypeParameter(type, parameterizedSupertype.getTypeParameters()[n]));
     }
 
     /**
@@ -116,9 +113,20 @@ public class GenericTypes {
      * @return the resolved type.
      */
     public static Type resolveType(Type type, Type contextType) {
-        return TypeToken.of(contextType)
-                .resolveType(type)
-                .getType();
+        return GenericTypeReflector.resolveType(GenericTypeReflector.annotate(type), GenericTypeReflector.annotate(contextType)).getType();
+    }
+
+    /**
+     * Resolves the <code>type</code> parameter in the context of <code>contextType</code>. For example, if
+     * <code>type</code> is <code>List.class.getMethod("get", int.class).getGenericReturnType()</code>, and
+     * <code>contextType</code> is <code>List&lt;String&gt;</code>, this method returns <code>String.class</code>
+     * @param type the type to be resolved in the scope of <code>contextType</code>
+     * @param contextType the context type in which <code>type</code> is interpreted to resolve the type.
+     * @return the resolved type.
+     */
+    public static Type resolveType(TypeVariable<? extends Class<?>> type, Type contextType) {
+        Type result = GenericTypeReflector.getTypeParameter(contextType, type);
+        return result == null ? type : result;
     }
 
     /**
@@ -147,13 +155,22 @@ public class GenericTypes {
      * @return the map entry type
      */
     public static Type resolveMapEntryType(Type keyType, Type valueType) {
-        return resolveMapEntryType(TypeToken.of(keyType), TypeToken.of(valueType));
+        return TypeFactory.parameterizedClass(Map.Entry.class, keyType, valueType);
     }
 
-    private static <K, V> Type resolveMapEntryType(TypeToken<K> keyType, TypeToken<V> valueType) {
-        return new TypeToken<Map.Entry<K, V>>() {}
-                .where(new TypeParameter<K>() {}, keyType)
-                .where(new TypeParameter<V>() {}, valueType)
-                .getType();
+    /**
+     * Creates a type of class {@code clazz} with {@code arguments} as type arguments.
+     * <p>
+     * For example: {@code parameterizedClass(Map.class, Integer.class, String.class)}
+     * returns the type {@code Map<Integer, String>}.
+     *
+     * @param clazz     Type class of the type to create
+     * @param arguments Type arguments for the variables of {@code clazz}, or null if these are not
+     *                  known.
+     * @return A {@link ParameterizedType}, or simply {@code clazz} if {@code arguments} is
+     * {@code null} or empty.
+     */
+    public static Type parameterizedClass(Class<?> clazz, Type... arguments) {
+        return TypeFactory.parameterizedClass(clazz, arguments);
     }
 }
