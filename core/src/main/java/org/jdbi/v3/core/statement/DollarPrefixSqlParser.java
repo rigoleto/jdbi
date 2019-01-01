@@ -26,6 +26,7 @@ import static org.jdbi.v3.core.internal.lexer.DollarStatementLexer.DOUBLE_QUOTED
 import static org.jdbi.v3.core.internal.lexer.DollarStatementLexer.EOF;
 import static org.jdbi.v3.core.internal.lexer.DollarStatementLexer.ESCAPED_TEXT;
 import static org.jdbi.v3.core.internal.lexer.DollarStatementLexer.LITERAL;
+import static org.jdbi.v3.core.internal.lexer.DollarStatementLexer.NAMED_ENCLOSED_PARAM;
 import static org.jdbi.v3.core.internal.lexer.DollarStatementLexer.NAMED_PARAM;
 import static org.jdbi.v3.core.internal.lexer.DollarStatementLexer.POSITIONAL_PARAM;
 import static org.jdbi.v3.core.internal.lexer.DollarStatementLexer.QUOTED_TEXT;
@@ -61,6 +62,9 @@ public class DollarPrefixSqlParser implements SqlParser {
                 case QUOTED_TEXT:
                 case DOUBLE_QUOTED_TEXT:
                     parsedSql.append(t.getText());
+                    break;
+                case NAMED_ENCLOSED_PARAM:
+                    parsedSql.appendNamedParameter(t.getText().substring(2, t.getText().length() - 1));
                     break;
                 case NAMED_PARAM:
                     parsedSql.appendNamedParameter(t.getText().substring(1));

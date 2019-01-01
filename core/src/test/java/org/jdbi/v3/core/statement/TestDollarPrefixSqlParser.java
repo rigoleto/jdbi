@@ -96,4 +96,11 @@ public class TestDollarPrefixSqlParser {
             .appendNamedParameter("key")
             .build());
     }
+
+    @Test
+    public void testParentheses() {
+        ParsedSql parsed = parser.parse("select =${var}cast", ctx);
+        assertThat(parsed.getSql()).isEqualTo("select =?cast");
+        assertThat(parsed.getParameters().getParameterNames()).containsExactly("var");
+    }
 }
