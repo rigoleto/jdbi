@@ -36,14 +36,14 @@ import org.jdbi.v3.meta.Beta;
 public class Arguments implements JdbiConfig<Arguments> {
     private final List<QualifiedArgumentFactory> factories = new CopyOnWriteArrayList<>();
     private ConfigRegistry registry;
-    private Argument untypedNullArgument = new NullArgument(Types.OTHER);
+    private Argument untypedNullArgument;
 
     public Arguments() {
-        // TODO move to BuiltInSupportPlugin
+        untypedNullArgument = new NullArgument(Types.OTHER);
 
+        // TODO move to BuiltInSupportPlugin
         // the null factory must be interrogated last to preserve types!
         register(new UntypedNullArgumentFactory());
-
         register(new PrimitivesArgumentFactory());
         register(new BoxedArgumentFactory());
         register(new SqlArgumentFactory());
@@ -58,14 +58,10 @@ public class Arguments implements JdbiConfig<Arguments> {
         register(new OptionalArgumentFactory());
     }
 
-    @Override
-    public void setRegistry(ConfigRegistry registry) {
-        this.registry = registry;
-    }
-
     private Arguments(Arguments that) {
         factories.addAll(that.factories);
         untypedNullArgument = that.untypedNullArgument;
+        registry = null;
     }
 
     /**
@@ -130,5 +126,10 @@ public class Arguments implements JdbiConfig<Arguments> {
     @Override
     public Arguments createCopy() {
         return new Arguments(this);
+    }
+
+    @Override
+    public void setRegistry(ConfigRegistry registry) {
+        this.registry = registry;
     }
 }

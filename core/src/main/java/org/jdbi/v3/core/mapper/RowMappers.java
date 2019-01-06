@@ -18,13 +18,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-
 import org.jdbi.v3.core.config.ConfigRegistry;
 import org.jdbi.v3.core.config.JdbiConfig;
 import org.jdbi.v3.core.generic.GenericType;
 import org.jdbi.v3.core.internal.JdbiOptionals;
 import org.jdbi.v3.core.mapper.reflect.internal.PojoMapperFactory;
 import org.jdbi.v3.core.statement.Query;
+
+import static org.jdbi.v3.core.internal.JdbiStreams.toStream;
 
 /**
  * Configuration registry for {@link RowMapperFactory} instances.
@@ -42,11 +43,7 @@ public class RowMappers implements JdbiConfig<RowMappers> {
     private RowMappers(RowMappers that) {
         factories.addAll(that.factories);
         cache.putAll(that.cache);
-    }
-
-    @Override
-    public void setRegistry(ConfigRegistry registry) {
-        this.registry = registry;
+        registry = null;
     }
 
     /**
@@ -155,5 +152,10 @@ public class RowMappers implements JdbiConfig<RowMappers> {
     @Override
     public RowMappers createCopy() {
         return new RowMappers(this);
+    }
+
+    @Override
+    public void setRegistry(ConfigRegistry registry) {
+        this.registry = registry;
     }
 }

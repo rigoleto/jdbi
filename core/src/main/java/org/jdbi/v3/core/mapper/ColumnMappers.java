@@ -49,14 +49,10 @@ public class ColumnMappers implements JdbiConfig<ColumnMappers> {
         register(new NVarcharMapper());
     }
 
-    @Override
-    public void setRegistry(ConfigRegistry registry) {
-        this.registry = registry;
-    }
-
     private ColumnMappers(ColumnMappers that) {
         factories.addAll(that.factories);
         cache.putAll(that.cache);
+        registry = null;
     }
 
     /**
@@ -197,5 +193,10 @@ public class ColumnMappers implements JdbiConfig<ColumnMappers> {
     @Override
     public ColumnMappers createCopy() {
         return new ColumnMappers(this);
+    }
+
+    @Override
+    public void setRegistry(ConfigRegistry registry) {
+        this.registry = registry;
     }
 }

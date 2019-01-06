@@ -14,6 +14,8 @@
 package org.jdbi.v3.vavr;
 
 import io.vavr.Tuple;
+import java.util.Arrays;
+import java.util.List;
 import org.jdbi.v3.core.config.ConfigRegistry;
 import org.jdbi.v3.core.config.JdbiConfig;
 import org.jdbi.v3.core.mapper.MapEntryConfig;
@@ -29,13 +31,14 @@ public class TupleMappers implements JdbiConfig<TupleMappers>, MapEntryConfig<Tu
     private static final int VALUE_COLUMN_TUPLE_INDEX = 2;
 
     private ConfigRegistry registry;
-
-    private String[] columns = new String[Tuple.MAX_ARITY];
+    // Arrays.asList(array) is fixed-size
+    private List<String> columns = Arrays.asList(new String[Tuple.MAX_ARITY]);
 
     public TupleMappers() {}
 
     private TupleMappers(TupleMappers that) {
-        System.arraycopy(that.columns, 0, this.columns, 0, Tuple.MAX_ARITY);
+        columns = Arrays.asList(that.columns.toArray(new String[0]));
+        registry = null;
     }
 
     @Override
@@ -74,7 +77,7 @@ public class TupleMappers implements JdbiConfig<TupleMappers>, MapEntryConfig<Tu
      * @return Config object for chaining
      */
     public TupleMappers setColumn(int tupleIndex, String name) {
-        columns[tupleIndex - 1] = name;
+        columns.set(tupleIndex - 1, name);
         return this;
     }
 
@@ -83,7 +86,7 @@ public class TupleMappers implements JdbiConfig<TupleMappers>, MapEntryConfig<Tu
      * @return the column name to be mapped explicitly
      */
     public String getColumn(int tupleIndex) {
-        return columns[tupleIndex - 1];
+        return columns.get(tupleIndex - 1);
     }
 
     @Override
