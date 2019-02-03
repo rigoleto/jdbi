@@ -4,6 +4,9 @@
   - Enums config class to change the default policy for binding and mapping Enum values.
   - @UseEnumStrategy SqlObject configurer for setting the default enum strategy.
   - @EnumByName and @EnumByOrdinal qualifying annotations to override said default policy.
+  - Added HyperSQL (HSQL) database integration.
+    - This mainly offers less painful`java.time` support.
+    - Includes a `DatabaseRule` in `core` and `JdbiRule` in `testing`.
 - Improvements
   - Improve Error handling with transactions
 - Minor source incompatibility
