@@ -13,19 +13,17 @@
  */
 package org.jdbi.v3.testing;
 
-import org.junit.Rule;
-import org.junit.Test;
+import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import javax.sql.DataSource;
 
-public class JdbiRuleH2Test {
-    @Rule
-    public JdbiRule h2 = JdbiRule.h2();
+import org.hsqldb.jdbc.JDBCDataSource;
 
-    @Test
-    public void isAlive() {
-        Integer one = h2.getJdbi().withHandle(h -> h.createQuery("select 1").mapTo(Integer.class).findOnly());
-
-        assertThat(one).isOne();
+class EmbeddedHsqlJdbiRule extends JdbiRule {
+    @Override
+    protected DataSource createDataSource() {
+        JDBCDataSource dataSource = new JDBCDataSource();
+        dataSource.setURL("jdbc:hsqldb:mem:" + UUID.randomUUID());
+        return dataSource;
     }
 }

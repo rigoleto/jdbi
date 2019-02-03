@@ -18,13 +18,13 @@ import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class JdbiRuleH2Test {
+public class JdbiRuleHsqlTest {
     @Rule
-    public JdbiRule h2 = JdbiRule.h2();
+    public JdbiRule hsql = JdbiRule.hsql();
 
     @Test
     public void isAlive() {
-        Integer one = h2.getJdbi().withHandle(h -> h.createQuery("select 1").mapTo(Integer.class).findOnly());
+        Integer one = hsql.getJdbi().withHandle(h -> h.createQuery("select * from (values(1))").mapTo(Integer.class).findOnly());
 
         assertThat(one).isOne();
     }

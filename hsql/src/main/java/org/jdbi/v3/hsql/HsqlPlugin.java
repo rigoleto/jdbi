@@ -11,21 +11,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jdbi.v3.testing;
+package org.jdbi.v3.hsql;
 
-import org.junit.Rule;
-import org.junit.Test;
+import org.jdbi.v3.core.Jdbi;
+import org.jdbi.v3.core.spi.JdbiPlugin;
+import org.jdbi.v3.hsql.internal.GetObjectColumnMapperFactory;
+import org.jdbi.v3.hsql.internal.SetObjectArgumentFactory;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-public class JdbiRuleH2Test {
-    @Rule
-    public JdbiRule h2 = JdbiRule.h2();
-
-    @Test
-    public void isAlive() {
-        Integer one = h2.getJdbi().withHandle(h -> h.createQuery("select 1").mapTo(Integer.class).findOnly());
-
-        assertThat(one).isOne();
+public class HsqlPlugin implements JdbiPlugin {
+    @Override
+    public void customizeJdbi(Jdbi jdbi) {
+        jdbi.registerArgument(new SetObjectArgumentFactory());
+        jdbi.registerColumnMapper(new GetObjectColumnMapperFactory());
     }
 }
