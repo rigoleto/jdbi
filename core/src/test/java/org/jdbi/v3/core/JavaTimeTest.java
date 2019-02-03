@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.Year;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -122,6 +123,15 @@ public class JavaTimeTest {
         createTable("int");
         insert(now);
         assertThat(get(Year.class)).isEqualTo(now);
+    }
+
+    @Test
+    public void yearMonth() {
+        YearMonth now = YearMonth.now();
+
+        createTable("int");
+        insert(now);
+        assertThat(get(YearMonth.class)).isEqualTo(now);
     }
 
     private void createTable(String columnType) {
