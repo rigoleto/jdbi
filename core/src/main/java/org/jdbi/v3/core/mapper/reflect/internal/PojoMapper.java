@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.jdbi.v3.core.annotation.JdbiProperty;
 import org.jdbi.v3.core.generic.GenericTypes;
 import org.jdbi.v3.core.mapper.ColumnMapper;
 import org.jdbi.v3.core.mapper.Nested;
@@ -95,6 +96,12 @@ public class PojoMapper<T> implements RowMapper<T> {
 
         for (PojoProperty<T> property : properties.getProperties().values()) {
             Nested anno = property.getAnnotation(Nested.class).orElse(null);
+            JdbiProperty propertyAnno = property.getAnnotation(JdbiProperty.class).orElse(JdbiProperty.DEFAULT);
+
+            if (!propertyAnno.mappable()) {
+                unmatchedColumns.remove(property.getName());
+                continue;
+            }
 
             if (anno == null) {
                 String paramName = prefix + getName(property);

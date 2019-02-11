@@ -6,6 +6,7 @@
   - @EnumByName and @EnumByOrdinal qualifying annotations to override said default policy.
   - Support for Postgres custom types, both user defined and driver types like `PGInterval` or `PGcircle`
   - RowView: add getColumn(QualifiedType) overloads
+  - @JdbiProperty lets you customize bean / pojo properties
 - Bugfixes
   - Improve vavr handling of typed null
 - Improvements

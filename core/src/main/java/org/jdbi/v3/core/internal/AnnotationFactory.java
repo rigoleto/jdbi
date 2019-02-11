@@ -16,17 +16,18 @@ package org.jdbi.v3.core.internal;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
+import java.util.Arrays;
 
 public class AnnotationFactory {
     private AnnotationFactory() {}
 
     public static <T extends Annotation> T create(Class<T> annotationType) {
-        if (annotationType.getDeclaredMethods().length > 0) {
+        Arrays.stream(annotationType.getDeclaredMethods()).filter(m -> m.getDefaultValue() == null).findAny().ifPresent(m -> {
             throw new IllegalArgumentException(String.format(
-                "Cannot synthesize annotation @%s from %s.class because it has attributes",
+                "Cannot synthesize annotation @%s from %s.class because it has attribute " + m.getName() + " without a default",
                 annotationType.getSimpleName(),
                 annotationType.getSimpleName()));
-        }
+        });
 
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         Class[] interfaces = {annotationType};
@@ -57,6 +58,10 @@ public class AnnotationFactory {
 
             if ("toString".equals(name) && method.getParameterCount() == 0) {
                 return "@" + annotationType.getName() + "()";
+            }
+
+            if (method.getDeclaringClass() == annotationType) {
+                return method.getDefaultValue();
             }
 
             throw new IllegalStateException("Unknown method " + method + " for annotation type " + annotationType);

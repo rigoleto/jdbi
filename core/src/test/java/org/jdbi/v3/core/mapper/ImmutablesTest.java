@@ -20,6 +20,7 @@ import java.util.OptionalInt;
 import org.immutables.value.Value;
 import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
+import org.jdbi.v3.core.annotation.JdbiProperty;
 import org.jdbi.v3.core.generic.GenericType;
 import org.jdbi.v3.core.mapper.immutables.JdbiImmutables;
 import org.jdbi.v3.core.rule.H2DatabaseRule;
@@ -28,6 +29,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class ImmutablesTest {
     @Rule
@@ -36,7 +38,8 @@ public class ImmutablesTest {
             .registerImmutable(SubValue.class)
             .registerImmutable(FooBarBaz.class)
             .registerModifiable(FooBarBaz.class)
-            .registerImmutable(Getter.class));
+            .registerImmutable(Getter.class)
+            .registerImmutable(Ignorable.class));
 
     private Jdbi jdbi;
     private Handle h;
@@ -161,5 +164,50 @@ public class ImmutablesTest {
                 .mapTo(Getter.class)
                 .findOnly())
             .isEqualTo(expected);
+    }
+
+    @Value.Immutable
+    public interface Ignorable {
+        @Value.Default
+        default int foo() {
+            return 1;
+        }
+
+        @Value.Check
+        default void checkFoo() {
+            if (foo() == 999) {
+                throw new Boom();
+            }
+        }
+
+        @Value.Derived
+        @JdbiProperty(mappable = false)
+        default int fooPlus40() {
+            return foo() + 40;
+        }
+    }
+
+    @Test
+    public void testIgnoredProperties() {
+        final Ignorable testy = ImmutableIgnorable.builder().foo(2).build();
+        h.execute("create table ignorable (foo int, fooPlus40 int)");
+        h.createUpdate("insert into ignorable(foo, fooPlus40) values (:foo, :fooPlus40)")
+            .bindPojo(testy)
+            .execute();
+        assertThat(h.createQuery("select * from ignorable")
+                .mapTo(Ignorable.class)
+                .findOnly()
+                .foo())
+            .isEqualTo(testy.foo());
+
+        assertThatThrownBy(() ->
+                h.createQuery("select 999 as foo")
+                    .mapTo(Ignorable.class)
+                    .findOnly())
+           .isInstanceOf(Boom.class);
+    }
+
+    static class Boom extends RuntimeException {
+        private static final long serialVersionUID = 1L;
     }
 }

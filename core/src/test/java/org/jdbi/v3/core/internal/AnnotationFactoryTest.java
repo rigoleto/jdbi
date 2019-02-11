@@ -46,7 +46,7 @@ public class AnnotationFactoryTest {
     public void createAnnotationWithAttributeFails() {
         assertThatThrownBy(() -> AnnotationFactory.create(Bar.class))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Cannot synthesize annotation @Bar from Bar.class because it has attributes");
+            .hasMessageContaining("Cannot synthesize annotation @Bar from Bar.class because it has attribute");
     }
 
     @Qualifier
