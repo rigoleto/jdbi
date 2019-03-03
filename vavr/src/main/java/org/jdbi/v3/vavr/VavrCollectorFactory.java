@@ -48,10 +48,10 @@ import io.vavr.collection.TreeSet;
 import io.vavr.collection.Vector;
 import io.vavr.control.Option;
 import org.jdbi.v3.core.collector.CollectorFactory;
-import org.jdbi.v3.core.generic.GenericTypes;
 
 import static org.jdbi.v3.core.generic.GenericTypes.findGenericParameter;
 import static org.jdbi.v3.core.generic.GenericTypes.getErasedType;
+import static org.jdbi.v3.core.generic.GenericTypes.parameterizedClass;
 
 @SuppressWarnings("PMD.ReplaceVectorWithList")
 class VavrCollectorFactory implements CollectorFactory {
@@ -135,8 +135,8 @@ class VavrCollectorFactory implements CollectorFactory {
     }
 
     private static Type resolveMaplikeEntryType(Type maplikeType, Class<?> maplikeClass) {
-        Type keyType = GenericTypes.findGenericParameter(maplikeType, maplikeClass, 0).orElse(Object.class);
-        Type valueType = GenericTypes.findGenericParameter(maplikeType, maplikeClass, 1).orElse(Object.class);
-        return GenericTypes.parameterizedClass(Tuple2.class, keyType, valueType);
+        Type keyType = findGenericParameter(maplikeType, maplikeClass, 0).orElse(Object.class);
+        Type valueType = findGenericParameter(maplikeType, maplikeClass, 1).orElse(Object.class);
+        return parameterizedClass(Tuple2.class, keyType, valueType);
     }
 }
