@@ -19,9 +19,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
-import net.jodah.expiringmap.ExpiringMap;
+import org.jdbi.v3.core.config.JdbiCache;
 import org.jdbi.v3.meta.Beta;
 
 import static java.util.stream.Collectors.toSet;
@@ -30,25 +29,32 @@ import static java.util.stream.Collectors.toSet;
  * Utility class for type qualifiers supported by Jdbi core.
  */
 @Beta
-public class Qualifiers {
-    private static final ExpiringMap<Object, Set<Annotation>> ANNOS = ExpiringMap.builder()
-            .expiration(10, TimeUnit.MINUTES)
-            .build();
-
-    private Qualifiers() {}
+public class Qualifiers extends JdbiCache<Qualifiers, Object, Set<Annotation>> {
+    public Qualifiers() {}
 
     /**
      * Returns the set of qualifying annotations on the given elements.
      * @param elements the annotated elements. Null elements are ignored.
      * @return the set of qualifying annotations on the given elements.
      */
+    public Set<Annotation> qualifiers(AnnotatedElement... elements) {
+        return getCache().computeIfAbsent(elements.length == 1 ? elements[0] : new HashSet<>(Arrays.asList(elements)), x ->
+            getQualifiers(elements));
+    }
+
+    /**
+     * Returns the set of qualifying annotations on the given elements.
+     * Note that this method's result is not cached.
+     * @param elements the annotated elements. Null elements are ignored.
+     * @return the set of qualifying annotations on the given elements.
+     * @see #qualifiers(AnnotatedElement...) for a cached version
+     */
     public static Set<Annotation> getQualifiers(AnnotatedElement... elements) {
-        return ANNOS.computeIfAbsent(elements.length == 1 ? elements[0] : new HashSet<>(Arrays.asList(elements)), x ->
-            Arrays.stream(elements)
+        return Arrays.stream(elements)
                 .filter(Objects::nonNull)
                 .map(AnnotatedElement::getAnnotations)
                 .flatMap(Arrays::stream)
                 .filter(anno -> anno.annotationType().isAnnotationPresent(Qualifier.class))
-                .collect(toSet()));
+                .collect(toSet());
     }
 }

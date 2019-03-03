@@ -13,15 +13,12 @@
  */
 package org.jdbi.v3.core.argument;
 
-import java.lang.annotation.Annotation;
 import java.util.Optional;
-import java.util.Set;
 
 import org.jdbi.v3.core.config.ConfigRegistry;
 import org.jdbi.v3.core.qualifier.QualifiedType;
+import org.jdbi.v3.core.qualifier.Qualifiers;
 import org.jdbi.v3.meta.Beta;
-
-import static org.jdbi.v3.core.qualifier.Qualifiers.getQualifiers;
 
 /**
  * Inspect a value with optional static qualified type information and produce an {@link Argument}
@@ -60,9 +57,9 @@ public interface QualifiedArgumentFactory {
      * @param factory the factory to adapt
      */
     static QualifiedArgumentFactory adapt(ArgumentFactory factory) {
-        Set<Annotation> qualifiers = getQualifiers(factory.getClass());
-        return (type, value, config) -> type.getQualifiers().equals(qualifiers)
-            ? factory.build(type.getType(), value, config)
-            : Optional.empty();
+        return (type, value, config) ->
+            type.getQualifiers().equals(config.get(Qualifiers.class).qualifiers(factory.getClass()))
+                ? factory.build(type.getType(), value, config)
+                : Optional.empty();
     }
 }

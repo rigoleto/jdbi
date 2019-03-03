@@ -10,6 +10,7 @@
   - Improve vavr handling of typed null
 - Improvements
   - Improve Error handling with transactions
+  - Rework caching to not use extra threads (#1453)
 - Minor source incompatibility
   - JdbiPlugin methods now `throws SQLException`
 

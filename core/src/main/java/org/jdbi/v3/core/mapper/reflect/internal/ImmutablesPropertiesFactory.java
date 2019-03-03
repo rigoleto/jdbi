@@ -22,71 +22,50 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
-import net.jodah.expiringmap.ExpirationPolicy;
-import net.jodah.expiringmap.ExpiringMap;
+import org.jdbi.v3.core.config.ConfigRegistry;
+import org.jdbi.v3.core.config.JdbiCache;
 import org.jdbi.v3.core.generic.GenericTypes;
 import org.jdbi.v3.core.internal.exceptions.Unchecked;
 import org.jdbi.v3.core.mapper.reflect.internal.PojoProperties.PojoProperty;
 import org.jdbi.v3.core.qualifier.QualifiedType;
 import org.jdbi.v3.core.qualifier.Qualifiers;
 
-public class ImmutablesPropertiesFactory {
+public interface ImmutablesPropertiesFactory {
+    PojoProperties<?> create(Type type, ConfigRegistry config);
 
-    private static final Map<Type, PojoProperties<?>> IMMUTABLE_PROPERTIES = ExpiringMap
-            .builder()
-            .expiration(10, TimeUnit.MINUTES)
-            .expirationPolicy(ExpirationPolicy.ACCESSED)
-            .build();
-
-    private static final Map<Type, PojoProperties<?>> MODIFIABLE_PROPERTIES = ExpiringMap
-            .builder()
-            .expiration(10, TimeUnit.MINUTES)
-            .expirationPolicy(ExpirationPolicy.ACCESSED)
-            .build();
-
-    private ImmutablesPropertiesFactory() {}
-
-    @SuppressWarnings("unchecked")
-    public static <T, B> Function<Type, PojoProperties<?>> immutable(Class<T> defn, Supplier<B> builder) {
-        return t -> (PojoProperties<T>) IMMUTABLE_PROPERTIES.computeIfAbsent(t, x -> new ImmutablePojoProperties<>(t, defn, builder));
+    static <T, B> ImmutablesPropertiesFactory immutable(Class<T> defn, Supplier<B> builder) {
+        return (t, config) -> new ImmutablePojoProperties<>(t, config, defn, builder);
     }
 
-    @SuppressWarnings("unchecked")
-    public static <T, M extends T> Function<Type, PojoProperties<?>> modifiable(Class<T> defn, Class<M> impl, Supplier<M> constructor) {
-        return t -> (PojoProperties<T>) MODIFIABLE_PROPERTIES.computeIfAbsent(t, x -> new ModifiablePojoProperties<>(t, defn, impl, constructor));
+    static <T, M extends T> ImmutablesPropertiesFactory modifiable(Class<T> defn, Class<M> impl, Supplier<M> constructor) {
+        return (t, config) -> new ModifiablePojoProperties<>(t, config, defn, impl, constructor);
     }
 
     static MethodHandle alwaysSet() {
         return MethodHandles.dropArguments(MethodHandles.constant(boolean.class, true), 0, Object.class);
     }
 
-    abstract static class BasePojoProperties<T, B> extends PojoProperties<T> {
-        protected final Map<String, ImmutablesPojoProperty<T>> properties = new HashMap<>();
+    abstract class BasePojoProperties<T, B> extends PojoProperties<T> {
+        protected final ConfigRegistry config;
         protected final Class<T> defn;
         protected final Class<?> impl;
         protected final Supplier<?> builder;
 
-        BasePojoProperties(Type type, Class<T> defn, Class<?> impl, Supplier<B> builder) {
+        BasePojoProperties(Type type, ConfigRegistry config, Class<T> defn, Class<?> impl, Supplier<B> builder) {
             super(type);
+            this.config = config;
             this.defn = defn;
             this.impl = impl;
             this.builder = builder;
-            for (Method m : defn.getMethods()) {
-                if (isProperty(m)) {
-                    final String name = propertyName(m);
-                    properties.put(name, createProperty(name, m));
-                }
-            }
         }
 
         private static String propertyName(Method m) {
@@ -104,7 +83,7 @@ public class ImmutablesPropertiesFactory {
             return name.substring(off, off + 1).toLowerCase() + name.substring(off + 1);
         }
 
-        private boolean isProperty(Method m) {
+        private static boolean isProperty(Method m) {
             return m.getParameterCount() == 0
                 && !m.isSynthetic()
                 && !Modifier.isStatic(m.getModifiers())
@@ -112,18 +91,24 @@ public class ImmutablesPropertiesFactory {
         }
 
         @Override
-        public Map<String, ? extends PojoProperty<T>> getProperties() {
-            return properties;
+        public Map<String, ImmutablesPojoProperty<T>> getProperties() {
+            return getPropertyMapCache().getCache()
+                    .computeIfAbsent(getType(), x ->
+                        Arrays.stream(defn.getMethods())
+                            .filter(BasePojoProperties::isProperty)
+                            .map(p -> createProperty(propertyName(p), p))
+                            .collect(Collectors.toMap(PojoProperty::getName, Function.identity())));
         }
 
         abstract ImmutablesPojoProperty<T> createProperty(String name, Method m);
+        abstract <C extends JdbiCache<C, Type, Map<String, ImmutablesPojoProperty<T>>>> C getPropertyMapCache();
     }
 
-    static class ImmutablePojoProperties<T, B> extends BasePojoProperties<T, B> {
+    class ImmutablePojoProperties<T, B> extends BasePojoProperties<T, B> {
         private MethodHandle builderBuild;
 
-        ImmutablePojoProperties(Type type, Class<T> defn, Supplier<B> builder) {
-            super(type, defn, null, builder);
+        ImmutablePojoProperties(Type type, ConfigRegistry config, Class<T> defn, Supplier<B> builder) {
+            super(type, config, defn, null, builder);
             try {
                 builderBuild = MethodHandles.lookup().unreflect(builder.get().getClass().getMethod("build"));
             } catch (NoSuchMethodException | IllegalAccessException e) {
@@ -137,7 +122,7 @@ public class ImmutablesPropertiesFactory {
                 final Type propertyType = GenericTypes.resolveType(m.getGenericReturnType(), getType());
                 return new ImmutablesPojoProperty<T>(
                         name,
-                        QualifiedType.of(propertyType).withAnnotations(Qualifiers.getQualifiers(m)),
+                        QualifiedType.of(propertyType).withAnnotations(config.get(Qualifiers.class).qualifiers(m)),
                         m,
                         alwaysSet(),
                         MethodHandles.lookup().unreflect(m).asFixedArity(),
@@ -175,7 +160,7 @@ public class ImmutablesPropertiesFactory {
             return new PojoBuilder<T>() {
                 @Override
                 public void set(String property, Object value) {
-                    Unchecked.biFunction(properties.get(property).setter::invoke).apply(b, value);
+                    Unchecked.biFunction(getProperties().get(property).setter::invoke).apply(b, value);
                 }
 
                 @Override
@@ -184,11 +169,17 @@ public class ImmutablesPropertiesFactory {
                 }
             };
         }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        ImmutablePropertiesCache getPropertyMapCache() {
+            return config.get(ImmutablePropertiesCache.class);
+        }
     }
 
-    static class ModifiablePojoProperties<T, M extends T> extends BasePojoProperties<T, M> {
-        ModifiablePojoProperties(Type type, Class<T> defn, Class<M> impl, Supplier<M> constructor) {
-            super(type, defn, impl, constructor);
+    class ModifiablePojoProperties<T, M extends T> extends BasePojoProperties<T, M> {
+        ModifiablePojoProperties(Type type, ConfigRegistry config, Class<T> defn, Class<M> impl, Supplier<M> constructor) {
+            super(type, config, defn, impl, constructor);
         }
 
         @Override
@@ -197,7 +188,7 @@ public class ImmutablesPropertiesFactory {
             try {
                 return new ImmutablesPojoProperty<T>(
                         name,
-                        QualifiedType.of(propertyType).withAnnotations(Qualifiers.getQualifiers(m)),
+                        QualifiedType.of(propertyType).withAnnotations(config.get(Qualifiers.class).qualifiers(m)),
                         m,
                         isSetMethod(name),
                         MethodHandles.lookup().unreflect(m).asFixedArity(),
@@ -228,7 +219,7 @@ public class ImmutablesPropertiesFactory {
             return new PojoBuilder<T>() {
                 @Override
                 public void set(String property, Object value) {
-                    Unchecked.biFunction(properties.get(property).setter::invoke).apply(instance, value);
+                    Unchecked.biFunction(getProperties().get(property).setter::invoke).apply(instance, value);
                 }
 
                 @SuppressWarnings("unchecked")
@@ -238,9 +229,15 @@ public class ImmutablesPropertiesFactory {
                 }
             };
         }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        ModifiablePropertiesCache getPropertyMapCache() {
+            return config.get(ModifiablePropertiesCache.class);
+        }
     }
 
-    static class ImmutablesPojoProperty<T> implements PojoProperty<T> {
+    class ImmutablesPojoProperty<T> implements PojoProperty<T> {
         private final String name;
         private final QualifiedType<?> type;
         private final Method defn;
@@ -283,4 +280,7 @@ public class ImmutablesPropertiesFactory {
             }).call();
         }
     }
+
+    class ImmutablePropertiesCache extends JdbiCache<ImmutablePropertiesCache, Type, Map<String, ImmutablesPojoProperty<?>>> {}
+    class ModifiablePropertiesCache extends JdbiCache<ModifiablePropertiesCache, Type, Map<String, ImmutablesPojoProperty<?>>> {}
 }

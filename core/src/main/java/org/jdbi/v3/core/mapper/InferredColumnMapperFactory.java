@@ -17,9 +17,9 @@ import java.util.Optional;
 
 import org.jdbi.v3.core.config.ConfigRegistry;
 import org.jdbi.v3.core.qualifier.QualifiedType;
+import org.jdbi.v3.core.qualifier.Qualifiers;
 
 import static org.jdbi.v3.core.generic.GenericTypes.findGenericParameter;
-import static org.jdbi.v3.core.qualifier.Qualifiers.getQualifiers;
 
 /**
  * A generic QualifiedColumnMapperFactory that reflectively inspects a
@@ -30,21 +30,23 @@ import static org.jdbi.v3.core.qualifier.Qualifiers.getQualifiers;
  * will be thrown.
  */
 class InferredColumnMapperFactory implements QualifiedColumnMapperFactory {
-    private final QualifiedType<?> maps;
     private final ColumnMapper<?> mapper;
 
     InferredColumnMapperFactory(ColumnMapper<?> mapper) {
-        this.maps = QualifiedType.of(
-            findGenericParameter(mapper.getClass(), ColumnMapper.class)
-                .orElseThrow(() -> new UnsupportedOperationException("Must use a concretely typed ColumnMapper here")))
-            .withAnnotations(getQualifiers(mapper.getClass()));
         this.mapper = mapper;
     }
 
     @Override
     public Optional<ColumnMapper<?>> build(QualifiedType<?> type, ConfigRegistry config) {
-        return maps.equals(type)
+        return maps(mapper, config).equals(type)
                 ? Optional.of(mapper)
                 : Optional.empty();
+    }
+
+    private static QualifiedType<?> maps(ColumnMapper<?> mapper, ConfigRegistry config) {
+        return QualifiedType.of(
+                findGenericParameter(mapper.getClass(), ColumnMapper.class)
+                    .orElseThrow(() -> new UnsupportedOperationException("Must use a concretely typed ColumnMapper here")))
+                .withAnnotations(config.get(Qualifiers.class).qualifiers(mapper.getClass()));
     }
 }

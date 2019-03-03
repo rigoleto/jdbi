@@ -13,7 +13,6 @@
  */
 package org.jdbi.v3.core.mapper.reflect.internal;
 
-import java.beans.BeanInfo;
 import java.beans.IntrospectionException;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
@@ -22,32 +21,23 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
-import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import net.jodah.expiringmap.ExpirationPolicy;
-import net.jodah.expiringmap.ExpiringMap;
+import org.jdbi.v3.core.config.ConfigRegistry;
+import org.jdbi.v3.core.config.JdbiCache;
 import org.jdbi.v3.core.generic.GenericTypes;
+import org.jdbi.v3.core.mapper.reflect.internal.PojoProperties.PojoProperty;
 import org.jdbi.v3.core.qualifier.QualifiedType;
+import org.jdbi.v3.core.qualifier.Qualifiers;
 import org.jdbi.v3.core.statement.UnableToCreateStatementException;
 
-import static org.jdbi.v3.core.qualifier.Qualifiers.getQualifiers;
-
 public class BeanPropertiesFactory {
-    private static final Map<Type, PojoProperties<?>> CLASS_PROPERTY_DESCRIPTORS = ExpiringMap
-            .builder()
-            .expiration(10, TimeUnit.MINUTES)
-            .expirationPolicy(ExpirationPolicy.ACCESSED)
-            .<Type, PojoProperties<?>>entryLoader((Type type) -> {
-                return new BeanPojoProperties<>(type);
-            })
-            .build();
-
     private static final String TYPE_NOT_INSTANTIABLE =
         "A bean, %s, was mapped which was not instantiable";
 
@@ -65,8 +55,8 @@ public class BeanPropertiesFactory {
 
     private BeanPropertiesFactory() {}
 
-    public static PojoProperties<?> propertiesFor(Type t) {
-        return CLASS_PROPERTY_DESCRIPTORS.get(t);
+    public static PojoProperties<?> propertiesFor(Type t, ConfigRegistry config) {
+        return new BeanPojoProperties<>(t, config);
     }
 
     private static boolean shouldSeeProperty(PropertyDescriptor pd) {
@@ -76,29 +66,27 @@ public class BeanPropertiesFactory {
     }
 
     static class BeanPojoProperties<T> extends PojoProperties<T> {
-        private final BeanInfo info;
-        private final Map<String, BeanPojoProperty<T>> properties;
+        private final ConfigRegistry config;
 
-        BeanPojoProperties(Type type) {
+        BeanPojoProperties(Type type, ConfigRegistry config) {
             super(type);
-            try {
-                this.info = Introspector.getBeanInfo(GenericTypes.getErasedType(type));
-            } catch (IntrospectionException e) {
-                throw new IllegalArgumentException("Failed to inspect bean " + type, e);
-            }
-            final Map<String, BeanPojoProperty<T>> props = new LinkedHashMap<>();
-            for (PropertyDescriptor property : info.getPropertyDescriptors()) {
-                if (shouldSeeProperty(property)) {
-                    final BeanPojoProperty<T> bp = new BeanPojoProperty<>(property);
-                    props.put(bp.getName(), bp);
-                }
-            }
-            properties = Collections.unmodifiableMap(props);
+            this.config = config;
         }
 
+        @SuppressWarnings("unchecked")
         @Override
-        public Map<String, ? extends PojoProperty<T>> getProperties() {
-            return properties;
+        public Map<String, BeanPojoProperty<T>> getProperties() {
+            return (Map<String, BeanPojoProperty<T>>) config.get(BeanPropertyCache.class).getCache()
+                    .computeIfAbsent(getType(), x -> {
+                        try {
+                            return Arrays.stream(Introspector.getBeanInfo(GenericTypes.getErasedType(getType())).getPropertyDescriptors())
+                                    .filter(BeanPropertiesFactory::shouldSeeProperty)
+                                    .map(pd -> new BeanPojoProperty<>(pd, config))
+                                    .collect(Collectors.toMap(PojoProperty::getName, Function.identity()));
+                        } catch (IntrospectionException e) {
+                            throw new IllegalArgumentException("Failed to inspect bean " + getType(), e);
+                        }
+                    });
         }
 
         @SuppressWarnings("unchecked")
@@ -114,7 +102,7 @@ public class BeanPropertiesFactory {
             return new PojoBuilder<T>() {
                 @Override
                 public void set(String property, Object value) {
-                    final BeanPojoProperties<T>.BeanPojoProperty<T> prop = properties.get(property);
+                    final BeanPojoProperty<T> prop = getProperties().get(property);
                     try {
                         Method writeMethod = prop.descriptor.getWriteMethod();
                         if (writeMethod == null) {
@@ -138,11 +126,13 @@ public class BeanPropertiesFactory {
             };
         }
 
-        class BeanPojoProperty<T> implements PojoProperty<T> {
+        static class BeanPojoProperty<T> implements PojoProperty<T> {
             final PropertyDescriptor descriptor;
+            final ConfigRegistry config;
 
-            BeanPojoProperty(PropertyDescriptor property) {
+            BeanPojoProperty(PropertyDescriptor property, ConfigRegistry config) {
                 this.descriptor = property;
+                this.config = config;
             }
 
             @Override
@@ -161,7 +151,7 @@ public class BeanPropertiesFactory {
                         .map(Method::getGenericReturnType)
                         .orElseGet(() -> descriptor.getWriteMethod().getGenericParameterTypes()[0]))
                     .withAnnotations(
-                        getQualifiers(descriptor.getReadMethod(), descriptor.getWriteMethod(), setterParam));
+                        config.get(Qualifiers.class).qualifiers(descriptor.getReadMethod(), descriptor.getWriteMethod(), setterParam));
             }
 
             @Override
@@ -197,4 +187,6 @@ public class BeanPropertiesFactory {
             }
         }
     }
+
+    public static class BeanPropertyCache extends JdbiCache<BeanPropertyCache, Type, Map<String, ? extends PojoProperty<?>>> {}
 }

@@ -63,11 +63,6 @@
         </dependency>
 
         <dependency>
-            <groupId>net.jodah</groupId>
-            <artifactId>expiringmap</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>org.immutables</groupId>
             <artifactId>value</artifactId>
             <scope>test</scope>
