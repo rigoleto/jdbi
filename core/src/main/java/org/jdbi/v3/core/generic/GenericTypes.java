@@ -113,7 +113,7 @@ public class GenericTypes {
      * @return the resolved type.
      */
     public static Type resolveType(Type type, Type contextType) {
-        return GenericTypeReflector.resolveType(GenericTypeReflector.annotate(type), GenericTypeReflector.annotate(contextType)).getType();
+        return GenericTypeReflector.resolveType(type, contextType);
     }
 
     /**
